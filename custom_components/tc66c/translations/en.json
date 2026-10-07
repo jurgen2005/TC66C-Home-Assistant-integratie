@@ -1,0 +1,55 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Choose your TC66C",
+        "description": "Close the TC66C web page first: the meter accepts only one connection.\n\n{likely} likely meter(s) (marked ★) out of {total} connectable Bluetooth devices. Pick one, or enter the MAC address yourself.",
+        "data": {
+          "address": "Device",
+          "manual_address": "Or MAC address (AA:BB:CC:DD:EE:FF)"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Set up {name} ({address}) as TC66C? BT24-M is a generic module name, so check this is the meter."
+      }
+    },
+    "abort": {
+      "already_configured": "This meter is already configured."
+    },
+    "error": {
+      "invalid_address": "Choose a device or enter a valid MAC address."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "description": "How often the meter is read, and when a charge session starts and ends. A session starts when the current reaches the threshold and ends when it stays below it for the end delay (or the meter is gone that long).\n\nRetry: normally HA connects as soon as a proxy hears the meter again. As a fallback it also tries every this many minutes without a new advertisement (0 = off). The Reconnect button on the device page does it right away.",
+        "data": {
+          "scan_interval": "Update interval (seconds)",
+          "charge_threshold": "Charge threshold (A)",
+          "end_delay": "End delay (seconds)",
+          "retry_minutes": "Retry after (minutes, 0 = off)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "link_status": {
+        "state": {
+          "connected": "Connected",
+          "connecting": "Connecting",
+          "disconnected": "Not connected",
+          "out_of_range": "Out of range"
+        }
+      }
+    },
+    "button": {
+      "reconnect": {
+        "name": "Reconnect"
+      }
+    }
+  }
+}

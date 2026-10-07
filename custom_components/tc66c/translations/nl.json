@@ -1,0 +1,55 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Kies je TC66C",
+        "description": "Sluit eerst de TC66C-webpagina: de meter accepteert maar één verbinding.\n\n{likely} waarschijnlijke meter(s) (met ★) van {total} verbindbare Bluetooth-apparaten. Kies er een, of vul zelf het MAC-adres in.",
+        "data": {
+          "address": "Apparaat",
+          "manual_address": "Of MAC-adres (AA:BB:CC:DD:EE:FF)"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "{name} ({address}) instellen als TC66C? BT24-M is een algemene modulenaam, controleer dus of dit de meter is."
+      }
+    },
+    "abort": {
+      "already_configured": "Deze meter is al ingesteld."
+    },
+    "error": {
+      "invalid_address": "Kies een apparaat of vul een geldig MAC-adres in."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Instellingen",
+        "description": "Hoe vaak de meter wordt uitgelezen, en wanneer een laadbeurt begint en eindigt. Een laadbeurt begint als de stroom de drempel haalt en eindigt als hij zo lang als de eindvertraging onder de drempel blijft (of de meter zo lang weg is).\n\nOpnieuw proberen: normaal verbindt HA zodra een proxy de meter weer hoort. Als vangnet probeert hij het daarnaast elke zoveel minuten zonder nieuwe advertentie (0 = uit). Met de knop Reconnect op de apparaatpagina kan het direct.",
+        "data": {
+          "scan_interval": "Interval (seconden)",
+          "charge_threshold": "Drempel laden (A)",
+          "end_delay": "Eindvertraging (seconden)",
+          "retry_minutes": "Opnieuw proberen na (minuten, 0 = uit)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "link_status": {
+        "state": {
+          "connected": "Verbonden",
+          "connecting": "Verbinden",
+          "disconnected": "Niet verbonden",
+          "out_of_range": "Niet in bereik"
+        }
+      }
+    },
+    "button": {
+      "reconnect": {
+        "name": "Opnieuw verbinden"
+      }
+    }
+  }
+}

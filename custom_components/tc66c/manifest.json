@@ -1,0 +1,27 @@
+{
+  "domain": "tc66c",
+  "name": "TC66C USB meter",
+  "bluetooth": [
+    {
+      "local_name": "BT24-M",
+      "connectable": true
+    },
+    {
+      "local_name": "TC66*",
+      "connectable": true
+    }
+  ],
+  "codeowners": [
+    "@jurgen2005"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
+  ],
+  "documentation": "https://github.com/jurgen2005/TC66C-Home-Assistant-integratie",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/jurgen2005/TC66C-Home-Assistant-integratie/issues",
+  "requirements": [],
+  "version": "0.7.0"
+}

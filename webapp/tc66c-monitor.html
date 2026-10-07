@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TC66C Monitor</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #66707a; --line: #dde1e6;
+    --accent: #1f6feb; --ok: #1a7f37; --err: #cf222e;
+    --c-v: #1f6feb; --c-a: #d4a017; --c-w: #c2410c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --text: #e6e9ed; --muted: #8b949e; --line: #2a3038;
+      --accent: #4c8dff; --ok: #3fb950; --err: #f85149;
+      --c-v: #4c8dff; --c-a: #e3b341; --c-w: #f0883e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0 auto 0 0; }
+  #avg { width: 4.5em; }
+  #doneA, #doneS { width: 5.5em; }
+  .donebox { margin-top: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .donebox .chartbar { margin-bottom: 0; }
+  #doneState { color: var(--text); }
+  button, select, input[type=number] { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
+                   background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { font-size: 13px; color: var(--muted); margin-bottom: 14px; min-height: 18px; }
+  #status.ok { color: var(--ok); } #status.err { color: var(--err); }
+  .big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+  .small { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tile .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .val .row { display: block; white-space: nowrap; }
+  .tile .val { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .big .val { font-size: 34px; }
+  .small .val { font-size: 18px; }
+  .big .tile:nth-child(1) .val { color: var(--c-v); }
+  .big .tile:nth-child(2) .val { color: var(--c-a); }
+  .big .tile:nth-child(3) .val { color: var(--c-w); }
+  .pick { cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .pick:hover { border-color: var(--muted); }
+  .pick.active:nth-child(1) { border-color: var(--c-v); box-shadow: inset 0 0 0 1px var(--c-v); }
+  .pick.active:nth-child(2) { border-color: var(--c-a); box-shadow: inset 0 0 0 1px var(--c-a); }
+  .pick.active:nth-child(3) { border-color: var(--c-w); box-shadow: inset 0 0 0 1px var(--c-w); }
+  .tip { cursor: help; }
+  .tip .lbl { text-decoration: underline dotted; text-underline-offset: 3px; }
+  .meterbox { margin-top: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .meterhead { font-size: 13px; color: var(--text); margin-bottom: 4px; }
+  .meterhead .muted { color: var(--muted); }
+  .meter { width: 100%; max-width: 760px; height: auto; display: block; margin: 0 auto; }
+  .meter .body { fill: #16191d; stroke: #3a414b; stroke-width: 2; }
+  .meter .screw { fill: #8b949e; stroke: #5b626b; }
+  .meter .deco path { fill: none; stroke: #c8a24a; stroke-width: 2.5; stroke-linejoin: round; }
+  .meter .metal { fill: #c3c8ce; stroke: #8b949e; stroke-width: 1.5; }
+  .meter .slot { fill: #6b737c; }
+  .meter .hole { fill: #2b2f35; }
+  .meter .screenframe { fill: none; stroke: #c8a24a; stroke-width: 3; }
+  .meter .screen { fill: #05070a; }
+  .meter .lcd { font: 700 22px ui-monospace, Menlo, monospace; }
+  .meter .lcd.v { fill: #36d16b; } .meter .lcd.a { fill: #4c9dff; }
+  .meter .lcd.s1 { font-size: 13px; fill: #f0603e; } .meter .lcd.s2 { font-size: 13px; fill: #e3d33b; }
+  .meter .lcd.t { font-size: 13px; fill: #e3d33b; } .meter .lcd.g { font-size: 13px; fill: #f0603e; }
+  .meter .btn { fill: #2b2f35; stroke: #8b949e; }
+  .meter .sw { fill: #e8e2cf; stroke: #8b949e; }
+  .meter .port { fill: #6b737c; stroke: #c3c8ce; }
+  .meter .lbl { font: 600 13px -apple-system, sans-serif; fill: var(--text); }
+  .meter .hot { cursor: help; outline: none; pointer-events: bounding-box; }
+  .meter .hot:hover rect, .meter .hot:focus rect { stroke: var(--accent); stroke-width: 3; }
+  .meter .hot:hover .lbl, .meter .hot:focus .lbl { fill: var(--accent); }
+  .logbox { margin-top: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .logbox summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .logbar { display: flex; gap: 8px; margin: 8px 0; }
+  .logbar button { font-size: 13px; padding: 4px 10px; }
+  #log { margin: 0; max-height: 280px; overflow: auto; font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; color: var(--text); }
+  #tooltip { position: fixed; z-index: 10; max-width: 300px; padding: 9px 11px; border-radius: 8px;
+             background: var(--text); color: var(--bg); font-size: 13px; line-height: 1.4; white-space: pre-line;
+             box-shadow: 0 4px 16px rgba(0,0,0,.2); pointer-events: none; opacity: 0; transition: opacity .12s; }
+  #tooltip.show { opacity: 1; }
+  .unit { font-size: .55em; color: var(--muted); font-weight: 500; margin-left: 3px; }
+  .chartbox { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .chartbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+  .chartbar .grow { flex: 1; }
+  canvas { width: 100%; height: 260px; display: block; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 14px; }
+  @media (max-width: 600px) { .big { grid-template-columns: 1fr; } .big .val { font-size: 28px; } }
+</style>
+</head>
+<body>
+<div id="tooltip" role="tooltip"></div>
+<main>
+  <header>
+    <h1>TC66C Monitor</h1>
+    <button id="btnConnect" class="primary" title="Verbindt met de laatst gebruikte meter; lukt dat niet, dan kies je er een">Verbinden</button>
+    <button id="btnChoose" title="Altijd de lijst met Bluetooth-apparaten tonen">Andere meter</button>
+    <button id="btnDisconnect" disabled>Verbreken</button>
+    <button id="btnCsv" disabled>CSV</button>
+    <button id="btnClear">Wissen</button>
+  </header>
+  <label class="note" style="display:block;margin:-6px 0 10px"><input type="checkbox" id="showAll"> Alle Bluetooth-apparaten tonen (alleen als de TC66C niet in de gefilterde lijst staat)</label>
+  <div id="status">Niet verbonden.</div>
+
+  <section class="big">
+    <div class="tile pick" data-series="voltage" tabindex="0" role="button" title="Toon spanning in de grafiek"><div class="lbl">Spanning</div><div class="val"><span id="v">--</span><span class="unit">V</span></div></div>
+    <div class="tile pick" data-series="current" tabindex="0" role="button" title="Toon stroom in de grafiek"><div class="lbl">Stroom</div><div class="val"><span id="a">--</span><span class="unit">A</span></div></div>
+    <div class="tile pick" data-series="power" tabindex="0" role="button" title="Toon vermogen in de grafiek"><div class="lbl">Vermogen</div><div class="val"><span id="w">--</span><span class="unit">W</span></div></div>
+  </section>
+  <section class="small">
+    <div class="tile tip" tabindex="0" data-tip="Groep 0: teller per sessie.&#10;&#10;Bij uitschakelen wordt de waarde tijdelijk bewaard. Bij aanzetten knippert de vorige waarde, zodat je het resultaat van de vorige keer kunt aflezen. Zodra er meer dan 1 mAh bij komt, wist hij die en begint hij opnieuw bij 0.&#10;&#10;Handig om één laadbeurt te meten: elke keer opnieuw aansluiten is een nieuwe meting.&#10;&#10;Alleen de actieve groep telt op (nummer rechts op het hoofdscherm, onder DATA). Wisselen: K2 lang indrukken op het hoofdscherm. Op 0 zetten: K1 lang indrukken."><div class="lbl">Groep 0</div><div class="val"><span class="row"><span id="mah0">--</span><span class="unit">mAh</span></span><span class="row"><span id="mwh0">--</span><span class="unit">mWh</span></span></div></div>
+    <div class="tile tip" tabindex="0" data-tip="Groep 1: doorlopende teller.&#10;&#10;Bij uitschakelen blijven mAh en mWh bewaard en bij aanzetten telt hij verder. Hij gaat alleen naar 0 als je hem zelf wist.&#10;&#10;Handig voor een totaal over meerdere sessies, bijvoorbeeld een powerbank die je in een paar keer oplaadt.&#10;&#10;Alleen de actieve groep telt op (nummer rechts op het hoofdscherm, onder DATA). Wisselen: K2 lang indrukken op het hoofdscherm. Op 0 zetten: K1 lang indrukken."><div class="lbl">Groep 1</div><div class="val"><span class="row"><span id="mah1">--</span><span class="unit">mAh</span></span><span class="row"><span id="mwh1">--</span><span class="unit">mWh</span></span></div></div>
+    <div class="tile tip" tabindex="0" data-tip="Zelf berekend door de pagina uit stroom en vermogen, sinds verbinden of Wissen. Los van de tellers in de meter."><div class="lbl">Sessie</div><div class="val"><span class="row"><span id="smah">--</span><span class="unit">mAh</span></span><span class="row"><span id="smwh">--</span><span class="unit">mWh</span></span></div></div>
+    <div class="tile"><div class="lbl">Weerstand</div><div class="val"><span id="ohm">--</span><span class="unit">&Omega;</span></div></div>
+    <div class="tile"><div class="lbl">Temperatuur</div><div class="val"><span id="temp">--</span><span class="unit">&deg;C</span></div></div>
+    <div class="tile tip" tabindex="0" data-tip="D+ (data plus): spanning op de positieve USB-datalijn.&#10;&#10;Laders en apparaten gebruiken de spanning op D+ en D&minus; om af te spreken hoeveel stroom er mag lopen en welk snellaadprotocol actief is (Apple, BC1.2, Qualcomm QC2.0/3.0). Bij USB-C Power Delivery loopt die afspraak via de CC-lijn en zeggen D+/D&minus; weinig. Volgens de handleiding alleen indicatief, niet nauwkeurig."><div class="lbl">D+</div><div class="val"><span id="dp">--</span><span class="unit">V</span></div></div>
+    <div class="tile tip" tabindex="0" data-tip="D&minus; (data min): spanning op de negatieve USB-datalijn.&#10;&#10;Laders en apparaten gebruiken de spanning op D+ en D&minus; om af te spreken hoeveel stroom er mag lopen en welk snellaadprotocol actief is (Apple, BC1.2, Qualcomm QC2.0/3.0). Bij USB-C Power Delivery loopt die afspraak via de CC-lijn en zeggen D+/D&minus; weinig. Volgens de handleiding alleen indicatief, niet nauwkeurig."><div class="lbl">D&minus;</div><div class="val"><span id="dm">--</span><span class="unit">V</span></div></div>
+  </section>
+
+  <section class="chartbox">
+    <div class="chartbar">
+      <label>Grafiek
+        <select id="series" autocomplete="off">
+          <option value="voltage">Spanning (V)</option>
+          <option value="current">Stroom (A)</option>
+          <option value="power" selected>Vermogen (W)</option>
+        </select>
+      </label>
+      <label>Venster
+        <select id="window">
+          <option value="60">1 min</option>
+          <option value="300" selected>5 min</option>
+          <option value="1800">30 min</option>
+          <option value="0">alles</option>
+        </select>
+      </label>
+      <label title="Voortschrijdend gemiddelde over de laatste N minuten; 0 = uit">Gemiddelde
+        <input type="number" id="avg" min="0" max="120" step="1" value="1" inputmode="numeric" autocomplete="off"> min
+      </label>
+      <span class="grow"></span>
+      <span id="count">0 metingen</span>
+    </div>
+    <canvas id="chart"></canvas>
+  </section>
+
+  <section class="donebox">
+    <div class="chartbar">
+      <label title="Geeft een melding en een geluid zodra de stroom na een laadbeurt onder de drempel blijft"><input type="checkbox" id="doneOn" autocomplete="off"> Melden als laden klaar is</label>
+      <label>onder <input type="number" id="doneA" min="0.01" max="5" step="0.01" value="0.10" inputmode="decimal" autocomplete="off"> A</label>
+      <label>gedurende <input type="number" id="doneS" min="10" max="3600" step="10" value="60" inputmode="numeric" autocomplete="off"> s</label>
+      <button id="btnDoneTest" title="Laat de melding en het geluid één keer horen">Test</button>
+      <span class="grow"></span>
+      <span id="doneState">Geen laadbeurt bezig.</span>
+    </div>
+  </section>
+
+  <section class="meterbox">
+    <div class="meterhead">De TC66C: knoppen en aansluitingen <span class="muted">(schematisch; ga met de muis over een onderdeel, of tab ernaartoe)</span></div>
+    <svg class="meter" viewBox="0 0 700 300" role="img" aria-label="Schematische tekening van de TC66C met knoppen en aansluitingen">
+      <!-- behuizing eerst, zodat de onderdelen erboven klikbaar zijn -->
+      <path class="body" d="M175 80 H610 a16 16 0 0 1 16 16 V224 a16 16 0 0 1 -16 16 H175 L130 205 V115 Z"/>
+      <circle class="screw" cx="185" cy="104" r="8"/><circle class="screw" cx="185" cy="216" r="8"/>
+      <circle class="screw" cx="603" cy="104" r="8"/><circle class="screw" cx="603" cy="216" r="8"/>
+      <g class="deco"><path d="M548 132 h22 v-9 l18 15 l-18 15 v-9 h-22 z"/><path d="M588 188 h-22 v-9 l-18 15 l18 15 v-9 h22 z"/></g>
+
+      <!-- USB-C stekker (links) -->
+      <g class="hot" tabindex="0" data-tip="USB-C-stekker&#10;&#10;De meter zit tussen lader en apparaat. Hij meet in beide richtingen; de pijl rechtsonder op het hoofdscherm toont de stroomrichting.&#10;Bereik: 0 tot 30 V, 0 tot 5 A, max. 150 W.">
+        <rect class="metal" x="40" y="138" width="94" height="44" rx="10"/>
+        <rect class="slot" x="52" y="155" width="66" height="10" rx="5"/>
+        <text class="lbl" x="87" y="262" text-anchor="middle">USB-C stekker</text>
+      </g>
+
+      <!-- USB-C bus (rechts) -->
+      <g class="hot" tabindex="0" data-tip="USB-C-bus&#10;&#10;Hier gaat het apparaat of de kabel in die je wilt meten. Tip uit de handleiding: sluit eerst de meter op de lader aan en daarna pas de belasting.">
+        <rect class="metal" x="624" y="138" width="34" height="44" rx="8"/>
+        <rect class="hole" x="630" y="146" width="22" height="28" rx="7"/>
+        <text class="lbl" x="641" y="262" text-anchor="middle">USB-C bus</text>
+      </g>
+
+      <!-- Scherm -->
+      <g class="hot" tabindex="0" data-tip="Scherm, acht pagina's. K1 kort = vorige, K2 kort = volgende.&#10;&#10;1. Hoofdscherm: V, A, mAh, mWh, Ω, W, temperatuur, datagroep en stroomrichting&#10;2. Offline opname (interval 1 tot 60 s)&#10;3. Snellaadherkenning: D+, D− en laadmodus&#10;4. Protocoldetectie (QC, FCP, SCP, AFC, PD)&#10;5. Trigger: lader een hogere spanning laten leveren&#10;6. Instellingen: scherm uit, helderheid, °C/°F, pc-verbinding, Bluetooth, draaien, CC-pull-down, taal, fabrieksinstellingen&#10;7. Systeeminformatie: serienummer, firmware, aantal keer aangezet&#10;8. Eenvoudige meting: alleen V, A en W">
+        <rect class="screenframe" x="214" y="104" width="300" height="112" rx="8"/>
+        <rect class="screen" x="221" y="111" width="286" height="98" rx="4"/>
+        <text class="lcd v" x="232" y="140">10.9904V</text>
+        <text class="lcd a" x="232" y="166">0.00000A</text>
+        <text class="lcd s1" x="232" y="185">00000mAh  9999.9Ω</text>
+        <text class="lcd s2" x="232" y="201">00000mWh  00.000W</text>
+        <text class="lcd t" x="455" y="140">25°C</text>
+        <text class="lcd g" x="455" y="166">DATA 0</text>
+      </g>
+
+      <!-- Bovenrand: K1, K2, PWR, PD -->
+      <g class="hot" tabindex="0" data-tip="K1&#10;&#10;Kort: vorige pagina; in een menu een waarde wijzigen of een submenu openen.&#10;Lang op het hoofdscherm: de actieve datagroep (mAh/mWh) op 0 zetten.&#10;Lang indrukken tijdens het aansluiten: opstartmodus om de firmware via de pc bij te werken.">
+        <rect class="btn" x="250" y="66" width="30" height="16" rx="3"/>
+        <text class="lbl" x="265" y="56" text-anchor="middle">K1</text>
+      </g>
+      <g class="hot" tabindex="0" data-tip="K2&#10;&#10;Kort: volgende pagina; in een menu de volgende optie.&#10;Lang: menu openen en weer sluiten (bij opname, protocoldetectie, trigger en instellingen).&#10;Lang op het hoofdscherm: wisselen tussen datagroep 0 en 1.&#10;Lang indrukken tijdens het aansluiten: fabrieksinstellingen terugzetten (de meetdata blijft bewaard).">
+        <rect class="btn" x="340" y="66" width="30" height="16" rx="3"/>
+        <text class="lbl" x="355" y="56" text-anchor="middle">K2</text>
+      </g>
+      <g class="hot" tabindex="0" data-tip="PWR-schakelaar&#10;&#10;ON: de meter haalt zijn eigen stroom uit de USB-C-lijn (normaal gebruik).&#10;OFF: de meter krijgt stroom via de micro-USB-poort. Dan kun je vanaf 0 V meten en belast de meter de gemeten lijn niet; zonder aangesloten belasting gebruikt hij zelf ongeveer 20 mA.">
+        <rect class="sw" x="470" y="68" width="18" height="14" rx="2"/>
+        <text class="lbl" x="479" y="56" text-anchor="middle">PWR</text>
+      </g>
+      <g class="hot" tabindex="0" data-tip="PD-schakelaar&#10;&#10;OFF: bij het meten van laden. Anders kan de meter het laden beïnvloeden.&#10;ON: voor triggeren en snellaad-protocoldetectie.&#10;Let op: triggeren en detectie kunnen een hoge spanning op de USB-C-uitgang zetten. Koppel dan eerst de belasting los.">
+        <rect class="sw" x="545" y="68" width="18" height="14" rx="2"/>
+        <text class="lbl" x="554" y="56" text-anchor="middle">PD</text>
+      </g>
+
+      <!-- Onderrand: micro-USB -->
+      <g class="hot" tabindex="0" data-tip="Micro-USB (onderrand)&#10;&#10;Voor een aparte voeding van de meter (met PWR op OFF), of om de meter met de pc-software te verbinden. De pc-software werkt alleen via deze USB-poort, niet via Bluetooth.">
+        <rect class="port" x="380" y="238" width="36" height="14" rx="3"/>
+        <text class="lbl" x="398" y="274" text-anchor="middle">micro-USB</text>
+      </g>
+    </svg>
+  </section>
+
+  <details class="logbox">
+    <summary>Logboek (<span id="logCount">0</span> regels)</summary>
+    <div class="logbar">
+      <button id="btnLogCopy">Kopiëren</button>
+      <button id="btnLogSave">Opslaan als .txt</button>
+      <button id="btnLogClear">Wissen</button>
+    </div>
+    <pre id="log"></pre>
+  </details>
+
+  <p class="note"><strong>Versie <span id="appVersion"></span></strong>. Werkt in Chrome of Edge, geopend via http://localhost (niet in Safari).
+    Protocol overgenomen uit rd-usb (kolinger): commando "bgetva", antwoord 192 bytes AES-256-ECB. Elk antwoord wordt gecontroleerd op kop en checksum; verminkte pakketten worden overgeslagen.</p>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- Versie: bij elke wijziging ophogen ---------- */
+const APP_VERSION = "2.4";
+const APP_DATE = "7 oktober 2026";
+
+/* ---------- Protocol (uit rd-usb interfaces/tc.py) ---------- */
+const SERVICES = [0xffe0, 0xffe5];
+const PAIRS = [ // [schrijf-characteristic, notify-characteristic]
+  ["0000ffe9-0000-1000-8000-00805f9b34fb", "0000ffe4-0000-1000-8000-00805f9b34fb"],
+  ["0000ffe2-0000-1000-8000-00805f9b34fb", "0000ffe1-0000-1000-8000-00805f9b34fb"],
+];
+const COMMAND = new TextEncoder().encode("bgetva\r\n");
+const RESPONSE_LEN = 192;
+const KEY = new Uint8Array([
+  88, 33, -6, 86, 1, -78, -16, 38,
+  -121, -1, 18, 4, 98, 42, 79, -80,
+  -122, -12, 2, 96, -127, 111, -102, 11,
+  -89, -15, 6, 97, -102, -72, 114, -120,
+].map(x => x & 255));
+const POLL_MS = 500;      // meter ververst 2x per seconde
+const GAP_MS = 5000;      // langer dan dit geen meting: lijn in de grafiek onderbreken
+const TIMEOUT_MS = 3000;  // wachten op 192 bytes
+
+/* ---------- AES-256-ECB ontsleutelen via Web Crypto ----------
+   Web Crypto kent geen ECB. Truc per blok C:
+   pad = AES-CBC-encrypt(iv=C, leeg) geeft E(C xor 0x10..), precies het geldige paddingblok na C.
+   AES-CBC-decrypt(iv=0, C || pad) geeft dan D(C). */
+let cbcKey = null;
+async function getKey() {
+  if (!cbcKey) cbcKey = await crypto.subtle.importKey("raw", KEY, { name: "AES-CBC" }, false, ["encrypt", "decrypt"]);
+  return cbcKey;
+}
+async function decryptBlock(key, block) {
+  const pad = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-CBC", iv: block }, key, new Uint8Array(0)));
+  const ct = new Uint8Array(32);
+  ct.set(block, 0); ct.set(pad.subarray(0, 16), 16);
+  return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-CBC", iv: new Uint8Array(16) }, key, ct));
+}
+async function aesEcbDecrypt(data) {
+  const key = await getKey();
+  const blocks = [];
+  for (let i = 0; i < data.length; i += 16) blocks.push(decryptBlock(key, data.slice(i, i + 16)));
+  const parts = await Promise.all(blocks);
+  const out = new Uint8Array(data.length);
+  parts.forEach((p, i) => out.set(p, i * 16));
+  return out;
+}
+
+function u32(d, o) { return (d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24)) >>> 0; }
+
+/* Controle zoals sigrok (rdtech-tc): elk blok van 64 bytes begint met "pac1".."pac3"
+   en eindigt met een CRC-16/Modbus over de eerste 60 bytes. Verminkt pakket = weggooien. */
+function crc16(d, start, len) {
+  let crc = 0xffff;
+  for (let i = start; i < start + len; i++) {
+    crc ^= d[i];
+    for (let b = 0; b < 8; b++) crc = (crc & 1) ? (crc >>> 1) ^ 0xa001 : crc >>> 1;
+  }
+  return crc;
+}
+function checkPacket(d) {
+  for (let i = 0; i < 3; i++) {
+    const o = i * 64;
+    const head = String.fromCharCode(d[o], d[o + 1], d[o + 2], d[o + 3]);
+    if (head !== "pac" + (i + 1)) throw new Error("pakket afgekeurd: onverwachte kop");
+    if (crc16(d, o, 60) !== u32(d, o + 60)) throw new Error("pakket afgekeurd: checksum klopt niet");
+  }
+}
+
+function decode(d) {
+  const tempSign = u32(d, 88) === 1 ? -1 : 1;
+  return {
+    time: new Date(),
+    voltage: u32(d, 48) / 10000,
+    current: u32(d, 52) / 100000,
+    power: u32(d, 56) / 10000,
+    resistance: u32(d, 68) / 10,
+    mah0: u32(d, 72),   // datagroep 0 (pac2 + 8)
+    mwh0: u32(d, 76),   // datagroep 0 (pac2 + 12)
+    mah1: u32(d, 80),   // datagroep 1 (pac2 + 16)
+    mwh1: u32(d, 84),   // datagroep 1 (pac2 + 20)
+    temperature: u32(d, 92) * tempSign,
+    dplus: u32(d, 96) / 100,
+    dminus: u32(d, 100) / 100,
+  };
+}
+
+/* ---------- Logboek: wat er met de verbinding gebeurt ---------- */
+const logLines = [];
+function log(msg) {
+  const t = new Date();
+  logLines.push(t.toLocaleTimeString("nl-NL") + "." + String(t.getMilliseconds()).padStart(3, "0") + "  " + msg);
+  if (logLines.length > 2000) logLines.shift();
+  const el = document.getElementById("log");
+  if (el) {
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    el.textContent = logLines.slice(-400).join("\n");
+    if (atBottom) el.scrollTop = el.scrollHeight;
+    document.getElementById("logCount").textContent = logLines.length;
+  }
+}
+const shortUuid = u => u.slice(4, 8);
+
+/* ---------- Bluetooth ---------- */
+let device = null, writeChar = null, notifyChar = null;
+let rx = new Uint8Array(0), waiter = null, running = false, loopGen = 0;
+let wantConnected = false, reconnectTimer = null, reconnectAttempt = 0, connectedAt = 0, connecting = false;
+let writeNoResponse = false, connSeq = 0;
+const RECONNECT_DELAYS = [1, 2, 5, 10, 20, 30]; // seconden, daarna elke 30 s
+const samples = [];
+const minute = { ok: 0, timeouts: 0, rejected: 0, other: 0, rtSum: 0, since: Date.now() };
+
+function onNotify(ev) {
+  const v = ev.target.value;
+  const chunk = new Uint8Array(v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength));
+  if (!waiter) { log("losse notificatie genegeerd (" + chunk.length + " bytes, er stond geen vraag open)"); return; }
+  const merged = new Uint8Array(rx.length + chunk.length);
+  merged.set(rx); merged.set(chunk, rx.length);
+  rx = merged;
+  if (rx.length >= RESPONSE_LEN) { const w = waiter; waiter = null; w(rx.slice(0, RESPONSE_LEN)); }
+}
+
+function waitForResponse() {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      waiter = null;
+      const e = new Error("geen antwoord binnen " + TIMEOUT_MS / 1000 + " s (" + rx.length + " van " + RESPONSE_LEN + " bytes ontvangen)");
+      e.timeout = true;
+      reject(e);
+    }, TIMEOUT_MS);
+    waiter = data => { clearTimeout(t); resolve(data); };
+  });
+}
+
+async function findCharacteristics(server) {
+  const found = {};
+  for (const svc of await server.getPrimaryServices()) {
+    try {
+      for (const ch of await svc.getCharacteristics()) found[ch.uuid] = ch;
+    } catch (e) { /* service zonder leesbare characteristics */ }
+  }
+  for (const [w, n] of PAIRS) if (found[w] && found[n]) return [found[w], found[n]];
+  throw new Error("TC66C-characteristics niet gevonden. Gevonden: " + (Object.keys(found).join(", ") || "geen"));
+}
+
+/* Verbinding opbouwen met een al gekozen apparaat (ook gebruikt bij automatisch herverbinden). */
+async function openConnection() {
+  const t0 = performance.now();
+  connecting = true;
+  const my = ++connSeq; // een latere poging of een time-out maakt deze poging ongeldig
+  setStatus("Zoeken naar " + (device.name || "apparaat") + " (max. 30 s)...");
+  await waitForAdvertisement(30000);
+  if (my !== connSeq) throw new Error("verbindingspoging achterhaald");
+  log("verbinden met " + (device.name || "apparaat") + " ...");
+  setStatus("Verbinden met " + (device.name || "apparaat") + "...");
+  const t1 = performance.now();
+  const server = await device.gatt.connect();
+  if (my !== connSeq) { try { device.gatt.disconnect(); } catch (_) {} throw new Error("verbindingspoging achterhaald"); }
+  log("GATT verbonden in " + Math.round(performance.now() - t1) + " ms");
+  [writeChar, notifyChar] = await findCharacteristics(server);
+  notifyChar.addEventListener("characteristicvaluechanged", onNotify);
+  await notifyChar.startNotifications();
+  if (my !== connSeq) { try { device.gatt.disconnect(); } catch (_) {} throw new Error("verbindingspoging achterhaald"); }
+  writeNoResponse = !!writeChar.properties.writeWithoutResponse;
+  log("klaar: commando via " + shortUuid(writeChar.uuid) + " (" + (writeNoResponse ? "zonder" : "met") +
+      " bevestiging), antwoord via " + shortUuid(notifyChar.uuid));
+  connectedAt = Date.now();
+  connecting = false;
+  reconnectAttempt = 0;
+  setButtons(true);
+  setStatus("Verbonden met " + (device.name || "apparaat") + ".", "ok");
+  running = true;
+  pollLoop(++loopGen);
+}
+
+/* ---------- Laatst gebruikte meter onthouden ---------- */
+const LAST_KEY = "tc66c-last-device";
+function rememberDevice(d) {
+  try { localStorage.setItem(LAST_KEY, JSON.stringify({ id: d.id, name: d.name || "" })); } catch (_) {}
+}
+function lastDeviceInfo() {
+  try { return JSON.parse(localStorage.getItem(LAST_KEY) || "null"); } catch (_) { return null; }
+}
+function useDevice(d) {
+  if (d !== device) {
+    device = d;
+    device.addEventListener("gattserverdisconnected", onDisconnected);
+  }
+}
+function withTimeout(promise, ms, what) {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error(what + " duurde langer dan " + ms / 1000 + " s")), ms))]);
+}
+
+/* Wachten tot Chrome de meter ziet uitzenden. Zonder recente advertentie geeft
+   gatt.connect() meteen "Bluetooth Device is no longer in range", ook als de meter er weer is. */
+const rssiHistory = []; // {rssi, t}
+function fmtGap(ms) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + " s";
+  const m = Math.floor(s / 60), r = s % 60;
+  if (m < 60) return m + " min" + (r ? " " + r + " s" : "");
+  return Math.floor(m / 60) + " u " + (m % 60) + " min";
+}
+function signalText() {
+  const n = rssiHistory.length;
+  if (!n) return "";
+  const last = rssiHistory[n - 1];
+  let t = " Signaal " + last.rssi + " dBm (" + rssiLabel(last.rssi) + ") om " + last.t.toLocaleTimeString("nl-NL");
+  if (n > 1) {
+    const prev = rssiHistory[n - 2];
+    t += ", vorige " + prev.rssi + " dBm, " + fmtGap(last.t - prev.t) + " eerder";
+  }
+  return t + ".";
+}
+function rssiLabel(r) { return r >= -70 ? "goed" : r >= -85 ? "zwak" : "slecht"; }
+async function waitForAdvertisement(ms) {
+  if (!device.watchAdvertisements) return null; // oudere Chrome: gewoon proberen te verbinden
+  const ac = new AbortController();
+  try {
+    const seen = new Promise(res => device.addEventListener("advertisementreceived", res, { once: true }));
+    await device.watchAdvertisements({ signal: ac.signal });
+    const ev = await withTimeout(seen, ms, "wachten op de meter");
+    rssiHistory.push({ rssi: ev.rssi, t: new Date() });
+    if (rssiHistory.length > 100) rssiHistory.shift();
+    log("meter gezien, signaal " + ev.rssi + " dBm (" + rssiLabel(ev.rssi) + ")");
+    return ev;
+  } catch (e) {
+    throw new Error("meter niet gezien binnen " + ms / 1000 + " s: staat hij uit, is hij buiten bereik of al met iets anders verbonden?");
+  } finally {
+    ac.abort();
+  }
+}
+
+/* Probeer de vorige meter zonder keuzelijst:
+   1. in deze sessie al gekozen: gewoon opnieuw verbinden;
+   2. na herladen: via getDevices(), als Chrome dat aanbiedt (zie de toelichting in het logboek). */
+async function findLastDevice() {
+  if (device) { log("vorige meter uit deze sessie gebruiken: " + (device.name || "naamloos")); return device; }
+  const last = lastDeviceInfo();
+  if (!last) { log("nog geen vorige meter bekend"); return null; }
+  if (!navigator.bluetooth.getDevices) {
+    log("deze Chrome kan eerder gekozen meters na herladen niet terugvinden (getDevices ontbreekt); zie chrome://flags/#enable-web-bluetooth-new-permissions-backend");
+    return null;
+  }
+  const known = await navigator.bluetooth.getDevices();
+  const d = known.find(k => k.id === last.id);
+  if (!d) { log("vorige meter (" + (last.name || "?") + ") staat niet meer in de toegestane apparaten"); return null; }
+  log("vorige meter teruggevonden: " + (d.name || last.name || "naamloos"));
+  return d;
+}
+
+async function connect(forceChooser) {
+  if (!navigator.bluetooth) {
+    setStatus("Web Bluetooth niet beschikbaar. Gebruik Chrome of Edge en open de pagina via http://localhost.", "err");
+    return;
+  }
+  $("btnConnect").disabled = true; $("btnChoose").disabled = true;
+
+  // 1. Zonder keuzelijst naar de laatst gebruikte meter
+  if (!forceChooser) {
+    try {
+      const d = await findLastDevice();
+      if (d) {
+        useDevice(d);
+        wantConnected = true;
+        await withTimeout(openConnection(), 60000, "verbinden met de vorige meter");
+        rememberDevice(device);
+        return;
+      }
+    } catch (e) {
+      log("vorige meter lukt niet: " + e.message);
+      connSeq++; // een nog lopende poging mag niet alsnog gaan meten
+      wantConnected = false;
+      clearTimeout(reconnectTimer); reconnectTimer = null;
+      try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (_) {}
+    }
+    // De keuzelijst mag alleen direct na een klik open; is dat moment voorbij, dan nog een klik vragen.
+    if (navigator.userActivation && !navigator.userActivation.isActive) {
+      setButtons(false);
+      setStatus("Vorige meter niet bereikbaar. Klik op 'Andere meter' om er een te kiezen.", "err");
+      return;
+    }
+  }
+
+  // 2. Keuzelijst
+  try {
+    setStatus("Kies de TC66C in de lijst...");
+    const opts = $("showAll").checked
+      ? { acceptAllDevices: true, optionalServices: SERVICES }
+      : { filters: [{ namePrefix: "TC" }, { services: [0xffe0] }, { services: [0xffe5] }], optionalServices: SERVICES };
+    useDevice(await navigator.bluetooth.requestDevice(opts));
+    log("apparaat gekozen: " + (device.name || "naamloos"));
+    rememberDevice(device);
+    wantConnected = true;
+  } catch (e) {
+    log("kiezen afgebroken: " + e.message);
+    setButtons(false);
+    setStatus("Niet verbonden.");
+    return;
+  }
+  try {
+    await openConnection();
+  } catch (e) {
+    log("verbinden mislukt: " + e.message);
+    connecting = false;
+    if (wantConnected) { setButtons(true); scheduleReconnect(); return; }
+    setStatus("Verbinden mislukt: " + e.message, "err");
+    wantConnected = false;
+    try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (_) {}
+    setButtons(false);
+  }
+}
+
+async function pollLoop(gen) {
+  let fails = 0;
+  while (running && gen === loopGen) {
+    const started = performance.now();
+    try {
+      rx = new Uint8Array(0);
+      const pending = waitForResponse();
+      if (writeNoResponse) await writeChar.writeValueWithoutResponse(COMMAND);
+      else await writeChar.writeValueWithResponse(COMMAND);
+      const raw = await pending;
+      const rt = performance.now() - started;
+      const plain = await aesEcbDecrypt(raw);
+      checkPacket(plain);
+      const s = decode(plain);
+      integrate(s);
+      samples.push(s);
+      show(s);
+      chargeCheck(s);
+      if (fails) log("weer goed na " + fails + " fout(en)");
+      fails = 0;
+      minute.ok++; minute.rtSum += rt;
+      if (rt > 1500) log("traag antwoord: " + Math.round(rt) + " ms");
+      const prevS = samples[samples.length - 2];
+      const gap = prevS ? " (+" + ((s.time - prevS.time) / 1000).toFixed(2).replace(".", ",") + " s)" : "";
+      setStatus("Verbonden met " + (device.name || "apparaat") + ". Laatste meting " + s.time.toLocaleTimeString("nl-NL") + gap + "." + signalText(), "ok");
+    } catch (e) {
+      if (!running || gen !== loopGen) break;
+      fails++;
+      if (e.timeout) minute.timeouts++;
+      else if (/afgekeurd/.test(e.message)) minute.rejected++;
+      else minute.other++;
+      log("leesfout " + fails + ": " + e.message + " (na " + Math.round(performance.now() - started) + " ms)");
+      setStatus("Leesfout (" + fails + "x): " + e.message, "err");
+      if (fails >= 5) {
+        log("5 fouten achter elkaar: verbinding opnieuw opbouwen");
+        try { device.gatt.disconnect(); } catch (_) {} // onDisconnected herverbindt, want wantConnected blijft aan
+        break;
+      }
+    }
+    if (Date.now() - minute.since >= 60000) {
+      const avgRt = minute.ok ? Math.round(minute.rtSum / minute.ok) : 0;
+      log("afgelopen minuut: " + minute.ok + " goed, " + minute.timeouts + " time-outs, " + minute.rejected +
+          " afgekeurd, " + minute.other + " overige fouten, gem. antwoordtijd " + avgRt + " ms");
+      Object.assign(minute, { ok: 0, timeouts: 0, rejected: 0, other: 0, rtSum: 0, since: Date.now() });
+    }
+    const wait = POLL_MS - (performance.now() - started);
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  }
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return; // er staat al een poging gepland
+  const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
+  reconnectAttempt++;
+  log("opnieuw verbinden over " + delay + " s (poging " + reconnectAttempt + ")");
+  setStatus("Verbinding weg. Opnieuw verbinden over " + delay + " s (poging " + reconnectAttempt + ")...", "err");
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    if (!wantConnected) return;
+    try { await openConnection(); }
+    catch (e) { log("herverbinden mislukt: " + e.message); if (wantConnected) scheduleReconnect(); }
+  }, delay * 1000);
+}
+
+function disconnect() {
+  wantConnected = false;
+  running = false;
+  clearTimeout(reconnectTimer); reconnectTimer = null;
+  log("verbreken door gebruiker");
+  try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (_) {}
+  setButtons(false);
+  setStatus("Niet verbonden.");
+}
+
+function onDisconnected() {
+  const dur = connectedAt ? Math.round((Date.now() - connectedAt) / 1000) : 0;
+  connectedAt = 0;
+  running = false;
+  const phase = dur || !connecting ? "na " + dur + " s" : "tijdens het opzetten";
+  connecting = false;
+  log("verbinding verbroken " + phase + (wantConnected ? "" : " (door gebruiker)") +
+      "; tabblad " + (document.hidden ? "op de achtergrond" : "zichtbaar"));
+  if (wantConnected) { setButtons(true); scheduleReconnect(); }
+  else { setButtons(false); setStatus("Verbinding verbroken.", "err"); }
+}
+
+/* ---------- Sessietotaal: zelf V x I integreren (trapezium), los van de tellers in de meter ---------- */
+let sessMah = 0, sessMwh = 0;
+function integrate(s) {
+  const prev = samples[samples.length - 1];
+  if (prev) {
+    const dtH = (s.time - prev.time) / 3600000;
+    if (dtH > 0 && dtH < 10 / 3600) { // gaten langer dan 10 s niet meetellen
+      sessMah += (prev.current + s.current) / 2 * 1000 * dtH;
+      sessMwh += (prev.power + s.power) / 2 * 1000 * dtH;
+    }
+  }
+  s.sessMah = sessMah; s.sessMwh = sessMwh;
+}
+
+/* ---------- Laden klaar: melding als de stroom na een laadbeurt onder de drempel blijft ---------- */
+const DONE_KEY = "tc66c-done-settings";
+const BASE_TITLE = document.title;
+const charge = { active: false, start: null, startMwh: 0, startMah: 0, below: null };
+const fmtTime = d => d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
+const nl = (v, d) => v.toFixed(d).replace(".", ",");
+let audioCtx = null;
+
+function doneSettings() {
+  return {
+    on: $("doneOn").checked,
+    amps: Math.min(5, Math.max(0.01, +$("doneA").value || 0.1)),
+    secs: Math.min(3600, Math.max(10, +$("doneS").value || 60)),
+  };
+}
+function saveDoneSettings() {
+  try { localStorage.setItem(DONE_KEY, JSON.stringify(doneSettings())); } catch (_) {}
+}
+function loadDoneSettings() {
+  try {
+    const o = JSON.parse(localStorage.getItem(DONE_KEY) || "null");
+    if (!o) return;
+    $("doneOn").checked = !!o.on;
+    if (o.amps) $("doneA").value = o.amps;
+    if (o.secs) $("doneS").value = o.secs;
+  } catch (_) {}
+}
+
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const t = audioCtx.currentTime;
+    [0, 0.3, 0.6].forEach(off => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t + off);
+      g.gain.exponentialRampToValueAtTime(0.3, t + off + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.22);
+      o.start(t + off); o.stop(t + off + 0.25);
+    });
+  } catch (e) { log("geluid afspelen mislukt: " + e.message); }
+}
+
+function notifyDone(title, body) {
+  beep();
+  document.title = "Klaar: " + title;
+  if (!("Notification" in window)) { log("melding: browser kent geen meldingen, alleen geluid"); return; }
+  if (Notification.permission === "granted") {
+    try { new Notification(title, { body, tag: "tc66c-done" }); }
+    catch (e) { log("melding tonen mislukt: " + e.message); }
+  } else {
+    log("melding niet getoond: toestemming is '" + Notification.permission + "', alleen geluid");
+  }
+}
+
+async function askNotifyPermission() {
+  // Moet vanuit een klik; tegelijk het geluid 'ontgrendelen' (browsers blokkeren audio zonder klik).
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (_) {}
+  if (!("Notification" in window)) { log("deze browser ondersteunt geen meldingen; alleen geluid"); return; }
+  if (Notification.permission === "default") {
+    const r = await Notification.requestPermission();
+    log("toestemming voor meldingen: " + r);
+  } else if (Notification.permission === "denied") {
+    log("meldingen zijn geblokkeerd voor deze pagina; zet ze aan via het slotje links van de adresbalk. Geluid werkt wel.");
+  }
+}
+
+function chargeCheck(s) {
+  const set = doneSettings();
+  const t = s.time.getTime();
+  if (s.current >= set.amps) {
+    if (!charge.active) {
+      Object.assign(charge, { active: true, start: s.time, startMwh: s.sessMwh, startMah: s.sessMah, below: null });
+      document.title = BASE_TITLE;
+      log("laden gestart (" + nl(s.current, 2) + " A, drempel " + nl(set.amps, 2) + " A)");
+    }
+    charge.below = null;
+  } else if (charge.active) {
+    if (charge.below === null) charge.below = t;
+    if (t - charge.below >= set.secs * 1000) {
+      charge.active = false;
+      const wh = (s.sessMwh - charge.startMwh) / 1000, mah = s.sessMah - charge.startMah;
+      const min = Math.round((charge.below - charge.start.getTime()) / 60000);
+      const body = nl(wh, 2) + " Wh, " + Math.round(mah) + " mAh in " + min + " min (" + fmtTime(charge.start) + " tot " + fmtTime(new Date(charge.below)) + ")";
+      log("laden klaar: " + body);
+      $("doneState").textContent = "Laden klaar om " + fmtTime(new Date(charge.below)) + ": " + body + ".";
+      if (set.on) notifyDone("laden klaar", body);
+      return;
+    }
+  }
+  if (charge.active) {
+    const wh = (s.sessMwh - charge.startMwh) / 1000;
+    $("doneState").textContent = "Laden bezig sinds " + fmtTime(charge.start) + ": " + nl(wh, 2) + " Wh" +
+      (charge.below !== null ? ", stroom onder de drempel sinds " + Math.round((t - charge.below) / 1000) + " s" : "") + ".";
+  }
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+function setStatus(text, cls) { const el = $("status"); el.textContent = text; el.className = cls || ""; }
+function setButtons(connected) {
+  $("btnConnect").disabled = connected;
+  $("btnChoose").disabled = connected;
+  $("btnDisconnect").disabled = !connected;
+  $("btnCsv").disabled = samples.length === 0;
+}
+
+function show(s) {
+  $("v").textContent = s.voltage.toFixed(2);
+  $("a").textContent = s.current.toFixed(2);
+  $("w").textContent = s.power.toFixed(2);
+  $("mah0").textContent = s.mah0;
+  $("mwh0").textContent = s.mwh0;
+  $("mah1").textContent = s.mah1;
+  $("mwh1").textContent = s.mwh1;
+  $("smah").textContent = s.sessMah.toFixed(2);
+  $("smwh").textContent = s.sessMwh.toFixed(1);
+  $("ohm").textContent = s.resistance.toFixed(1);
+  $("temp").textContent = s.temperature;
+  $("dp").textContent = s.dplus.toFixed(2);
+  $("dm").textContent = s.dminus.toFixed(2);
+  $("count").textContent = samples.length + " metingen";
+  $("btnCsv").disabled = false;
+  drawChart();
+}
+
+function drawChart() {
+  const cv = $("chart"), ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const css = getComputedStyle(document.documentElement);
+  const key = $("series").value;
+  const color = css.getPropertyValue({ voltage: "--c-v", current: "--c-a", power: "--c-w" }[key]).trim();
+  const muted = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim();
+
+  const win = +$("window").value;
+  const now = samples.length ? samples[samples.length - 1].time.getTime() : Date.now();
+  const pts = win ? samples.filter(s => now - s.time.getTime() <= win * 1000) : samples;
+  const first = samples.length - pts.length; // pts is altijd het laatste stuk van samples
+
+  // Voortschrijdend gemiddelde over de laatste avgMin minuten (ook met metingen van voor het venster)
+  const avgMin = Math.max(0, Math.min(120, +$("avg").value || 0));
+  let avg = null;
+  if (avgMin > 0 && samples.length) {
+    const spanMs = avgMin * 60000;
+    avg = new Array(samples.length);
+    let j = 0, sum = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const t = samples[i].time.getTime();
+      sum += samples[i][key];
+      while (samples[j].time.getTime() < t - spanMs) { sum -= samples[j][key]; j++; }
+      avg[i] = sum / (i - j + 1);
+    }
+  }
+  const padL = 56, padR = 10, padT = 8, padB = 22;
+  const pw = W - padL - padR, ph = H - padT - padB;
+
+  ctx.font = "11px -apple-system, sans-serif";
+  ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
+  if (pts.length < 2) { ctx.fillText("Nog te weinig metingen", padL, padT + 20); return; }
+
+  let min = Infinity, max = -Infinity;
+  for (const p of pts) { min = Math.min(min, p[key]); max = Math.max(max, p[key]); }
+  if (avg) for (let i = first; i < samples.length; i++) { min = Math.min(min, avg[i]); max = Math.max(max, avg[i]); }
+  if (max - min < 1e-6) { max += 0.001; min = Math.max(0, min - 0.001); }
+  const span = max - min; min -= span * 0.05; max += span * 0.05;
+  const t0 = pts[0].time.getTime(), t1 = pts[pts.length - 1].time.getTime();
+  const x = t => padL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
+  const y = v => padT + (1 - (v - min) / (max - min)) * ph;
+
+  const decimals = 2;
+  for (let i = 0; i <= 4; i++) {
+    const v = min + (max - min) * i / 4, yy = y(v);
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillText(v.toFixed(decimals), 4, yy + 4);
+  }
+  ctx.fillText(pts[0].time.toLocaleTimeString("nl-NL"), padL, H - 6);
+  const endLbl = pts[pts.length - 1].time.toLocaleTimeString("nl-NL");
+  ctx.fillText(endLbl, W - padR - ctx.measureText(endLbl).width, H - 6);
+
+  // Ruwe metingen; met gemiddelde aan vaag op de achtergrond
+  // Bij een gat (verbinding weg) een nieuwe lijn beginnen in plaats van een rechte streep over het gat.
+  const isBreak = i => i === first || samples[i].time - samples[i - 1].time > GAP_MS;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.75; ctx.globalAlpha = avg ? 0.3 : 1; ctx.beginPath();
+  for (let i = first; i < samples.length; i++) {
+    const px = x(samples[i].time.getTime()), py = y(samples[i][key]);
+    isBreak(i) ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  if (avg) {
+    ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let i = first; i < samples.length; i++) {
+      const px = x(samples[i].time.getTime()), py = y(avg[i]);
+      isBreak(i) ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    const lbl = "gemiddelde " + avgMin + " min: " + avg[samples.length - 1].toFixed(decimals);
+    ctx.fillStyle = color; ctx.font = "600 12px -apple-system, sans-serif";
+    ctx.fillText(lbl, W - padR - ctx.measureText(lbl).width, padT + 12);
+  }
+}
+
+function exportCsv() {
+  const head = "tijd;spanning_V;stroom_A;vermogen_W;weerstand_ohm;mAh_g0;mWh_g0;mAh_g1;mWh_g1;sessie_mAh;sessie_mWh;temperatuur_C;dplus_V;dminus_V";
+  const rows = samples.map(s => [s.time.toLocaleString("nl-NL")].concat([
+    s.voltage, s.current, s.power, s.resistance, s.mah0, s.mwh0, s.mah1, s.mwh1, s.sessMah.toFixed(3), s.sessMwh.toFixed(2), s.temperature, s.dplus, s.dminus,
+  ].map(v => String(v).replace(".", ","))).join(";"));
+  const blob = new Blob([head + "\n" + rows.join("\n") + "\n"], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "tc66c-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+$("btnConnect").onclick = () => connect(false);
+$("btnChoose").onclick = () => connect(true);
+$("btnDisconnect").onclick = disconnect;
+$("btnCsv").onclick = exportCsv;
+loadDoneSettings();
+$("doneOn").onchange = () => { saveDoneSettings(); if ($("doneOn").checked) askNotifyPermission(); };
+$("doneA").onchange = saveDoneSettings;
+$("doneS").onchange = saveDoneSettings;
+$("btnDoneTest").onclick = async () => { await askNotifyPermission(); notifyDone("test", "Zo klinkt en ziet de melding eruit."); setTimeout(() => { document.title = BASE_TITLE; }, 5000); };
+window.addEventListener("focus", () => { if (document.title.startsWith("Klaar")) document.title = BASE_TITLE; });
+$("btnClear").addEventListener("click", () => { Object.assign(charge, { active: false, start: null, below: null }); $("doneState").textContent = "Geen laadbeurt bezig."; });
+$("btnClear").onclick = () => { samples.length = 0; sessMah = 0; sessMwh = 0; $("smah").textContent = "--"; $("smwh").textContent = "--"; $("count").textContent = "0 metingen"; $("btnCsv").disabled = true; drawChart(); };
+$("series").value = "power"; // altijd starten met vermogen, ook als de browser een oude keuze herstelt
+$("avg").value = "1";       // en met het gemiddelde over 1 minuut
+
+/* Klik op spanning, stroom of vermogen: die grootheid in de grafiek; actieve tegel gemarkeerd */
+function markActiveTile() {
+  document.querySelectorAll(".pick").forEach(t => t.classList.toggle("active", t.dataset.series === $("series").value));
+}
+function pickSeries(key) { $("series").value = key; markActiveTile(); drawChart(); }
+document.querySelectorAll(".pick").forEach(t => {
+  t.addEventListener("click", () => pickSeries(t.dataset.series));
+  t.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pickSeries(t.dataset.series); } });
+});
+$("series").onchange = () => { markActiveTile(); drawChart(); };
+markActiveTile();
+$("window").onchange = drawChart;
+$("avg").oninput = drawChart;
+window.addEventListener("resize", drawChart);
+drawChart();
+
+/* ---------- Tooltips: direct bij hover (of tik/focus), binnen het venster gehouden ---------- */
+(function () {
+  const tip = $("tooltip");
+  function showTip(el) {
+    tip.textContent = el.dataset.tip;
+    tip.classList.add("show");
+    const r = el.getBoundingClientRect(), t = tip.getBoundingClientRect();
+    let left = r.left + r.width / 2 - t.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - t.width - 8));
+    let top = r.bottom + 8;
+    if (top + t.height > window.innerHeight - 8) top = r.top - t.height - 8;
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function hideTip() { tip.classList.remove("show"); }
+  document.querySelectorAll("[data-tip]").forEach(el => {
+    el.addEventListener("mouseenter", () => showTip(el));
+    el.addEventListener("mouseleave", hideTip);
+    el.addEventListener("focus", () => showTip(el));
+    el.addEventListener("blur", hideTip);
+  });
+  window.addEventListener("scroll", hideTip, { passive: true });
+})();
+
+/* ---------- Logboek-knoppen en omgevingsgebeurtenissen ---------- */
+$("btnLogCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(logLines.join("\n")); log("logboek gekopieerd naar klembord"); }
+  catch (e) { log("kopiëren mislukt: " + e.message); }
+};
+$("btnLogSave").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([logLines.join("\n") + "\n"], { type: "text/plain" }));
+  a.download = "tc66c-log-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".txt";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("btnLogClear").onclick = () => { logLines.length = 0; log("logboek gewist"); };
+document.addEventListener("visibilitychange", () => log("tabblad " + (document.hidden ? "naar de achtergrond" : "weer zichtbaar")));
+if (navigator.bluetooth && navigator.bluetooth.addEventListener) {
+  navigator.bluetooth.addEventListener("availabilitychanged", e => log("Bluetooth van de computer " + (e.value ? "beschikbaar" : "uitgeschakeld")));
+}
+$("appVersion").textContent = APP_VERSION + " (" + APP_DATE + ")";
+log("pagina geladen, versie " + APP_VERSION + " van " + APP_DATE);
+</script>
+</body>
+</html>
